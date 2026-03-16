@@ -54,3 +54,86 @@ void printBoard(uint8_t** board, int rows, int columns){
         cout << endl;
     }
 }
+uint8_t* rotatePiece(uint8_t* piece, int height, int width, int &newHeight, int &newWidth){
+    newHeight = width;
+    newWidth = height;
+    uint8_t* rotated = new uint8_t[newHeight];
+    for(int i = 0; i < newHeight; i++){
+        rotated[i] = 0;
+    }
+    for(int i = 0; i < height; i++){
+        for(int j = 0; j < width; j++){
+            if(piece[i] & (1 << (width - 1 - j))){
+                rotated[j] |= (1 << (height - 1 - i));
+            }
+        }
+    }
+    return rotated;
+}
+uint8_t* createPiece(int type, int &height, int &width){
+    uint8_t* piece = nullptr;
+
+    if(type == 0){        // pieza I
+        height = 1;
+        width = 4;
+        piece = new uint8_t[height];
+        piece[0] = 0b00001111;  // # # # #
+
+    } else if(type == 1){ // pieza O
+        height = 2;
+        width = 2;
+        piece = new uint8_t[height];
+        piece[0] = 0b00000011;  // # #
+        piece[1] = 0b00000011;  // # #
+
+    } else if(type == 2){ // pieza T
+        height = 2;
+        width = 3;
+        piece = new uint8_t[height];
+        piece[0] = 0b00000010;  // . # .
+        piece[1] = 0b00000111;  // # # #
+
+    } else if(type == 3){ // pieza S
+        height = 2;
+        width = 3;
+        piece = new uint8_t[height];
+        piece[0] = 0b00000110;  // . # #
+        piece[1] = 0b00000011;  // # # .
+
+    } else if(type == 4){ // pieza Z
+        height = 2;
+        width = 3;
+        piece = new uint8_t[height];
+        piece[0] = 0b00000011;  // # # .
+        piece[1] = 0b00000110;  // . # #
+
+    } else if(type == 5){ // pieza J
+        height = 3;
+        width = 2;
+        piece = new uint8_t[height];
+        piece[0] = 0b00000010;  // # .
+        piece[1] = 0b00000010;  // # .
+        piece[2] = 0b00000011;  // # #
+
+    } else if(type == 6){ // pieza L
+        height = 3;
+        width = 2;
+        piece = new uint8_t[height];
+        piece[0] = 0b00000001;  // . #
+        piece[1] = 0b00000001;  // . #
+        piece[2] = 0b00000011;  // # #
+    }
+    return piece;
+}
+void printPiece(uint8_t* piece, int height, int width){
+    for(int i = 0; i < height; i++){
+        for(int j = width - 1; j >= 0; j--){
+            if(piece[i] & (1 << j)){
+                cout << "# ";
+            } else {
+                cout << ". ";
+            }
+        }
+        cout << endl;
+    }
+}
