@@ -137,3 +137,171 @@ void printPiece(uint8_t* piece, int height, int width){
         cout << endl;
     }
 }
+void printBoardWithPiece(uint8_t** board, int rows, int columns, uint8_t* piece, int pieceHeight, int pieceWidth, int pieceRow, int pieceCol){
+    for(int i = 0; i < rows; i++){
+        for(int j = 0; j < columns; j++){
+
+            // verificar si la pieza ocupa esta celda (i,j)
+            int pieceRowIndex = i - pieceRow;
+            int pieceColIndex = j - pieceCol;
+
+            bool enPieza = false;
+            if(pieceRowIndex >= 0 && pieceRowIndex < pieceHeight &&
+                pieceColIndex >= 0 && pieceColIndex < pieceWidth){
+                enPieza = piece[pieceRowIndex] & (1 << (pieceWidth - 1 - pieceColIndex));
+            }
+
+            // verificar si el tablero tiene algo en (i,j)
+            int byteIndex = j / 8;
+            int bitIndex  = 7 - (j % 8);
+            bool enTablero = board[i][byteIndex] & (1 << bitIndex);
+
+            if(enPieza || enTablero){
+                cout << "#";
+            } else {
+                cout << ".";
+            }
+        }
+        cout << endl;
+    }
+}
+bool canMove(uint8_t** board, int rows, int columns, uint8_t* piece, int pieceHeight, int pieceWidth, int newRow, int newCol){
+    for(int i = 0; i < pieceHeight; i++){
+        for(int j = 0; j < pieceWidth; j++){
+
+            // verificar si el bit (i,j) de la pieza está encendido
+            if(piece[i] & (1 << (pieceWidth - 1 - j))){
+
+                int boardRow = newRow + i;
+                int boardCol = newCol + j;
+
+                // verificar bordes del tablero
+                if(boardRow >= rows || boardCol < 0 || boardCol >= columns){
+                    return false;  // se sale del tablero
+                }
+
+                // verificar colisión con tablero
+                int byteIndex = boardCol / 8;
+                int bitIndex  = 7 - (boardCol % 8);
+                if(board[boardRow][byteIndex] & (1 << bitIndex)){
+                    return false;  // colisión con celda ocupada
+                }
+            }
+        }
+    }
+    return true;  // puede moverse
+}
+void fixPiece(uint8_t** board, int columns, uint8_t* piece, int pieceHeight, int pieceWidth, int pieceRow, int pieceCol){
+    for(int i = 0; i < pieceHeight; i++){
+        for(int j = 0; j < pieceWidth; j++){
+
+            // verificar si el bit (i,j) de la pieza está encendido
+            if(piece[i] & (1 << (pieceWidth - 1 - j))){
+
+                int boardRow = pieceRow + i;
+                int boardCol = pieceCol + j;
+
+                // encender ese bit en el tablero usando OR
+                int byteIndex = boardCol / 8;
+                int bitIndex  = 7 - (boardCol % 8);
+                board[boardRow][byteIndex] |= (1 << bitIndex);
+            }
+        }
+    }
+}
+void gameLoop(uint8_t** board, int rows, int columns){
+    int height, width;
+    int type = 2; // luego será aleatorio
+    uint8_t* piece = createPiece(type, height, width);
+
+    int pieceRow = 0;
+    int pieceCol = (columns / 2) - (width / 2);
+
+    bool gameOver = false;
+    char accion;
+
+    while(!gameOver){
+        // 1. imprimir tablero con pieza
+        printBoardWithPiece(board, rows, columns, piece, height, width, pieceRow, pieceCol);
+        cout << "Accion: [A]Izq [D]Der [S]Bajar [W]Rotar [Q]Salir: ";
+        cin >> accion;
+
+        // 2. procesar accion
+        if(accion == 'q' || accion == 'Q'){
+            gameOver = true;
+
+        } else if(accion == 'a' || accion == 'A'){
+            if(canMove(board, rows, columns, piece, height, width, pieceRow, pieceCol - 1)){
+                pieceCol--;
+            }
+
+        } else if(accion == 'd' || accion == 'D'){
+            if(canMove(board, rows, columns, piece, height, width, pieceRow, pieceCol + 1)){
+                pieceCol++;
+            }
+
+        } else if(accion == 's' || accion == 'S'){
+            if(canMove(board, rows, columns, piece, height, width, pieceRow + 1, pieceCol)){
+                pieceRow++;
+            } else {
+                // fijar pieza en el tablero
+                fixPiece(board, columns, piece, height, width, pieceRow, pieceCol);
+                delete[] piece;
+
+                // generar nueva pieza
+                type = 2; // luego será aleatorio
+                piece = createPiece(type, height, width);
+                pieceRow = 0;
+                pieceCol = (columns / 2) - (width / 2);
+
+                // verificar game over
+                if(!canMove(board, rows, columns, piece, height, width, pieceRow, pieceCol)){
+                    gameOver = true;
+                    cout << "GAME OVER" << endl;
+                }
+            }
+
+        } else if(accion == 'w' || accion == 'W'){
+            int newHeight, newWidth;
+            uint8_t* rotated = rotatePiece(piece, height, width, newHeight, newWidth);
+            if(canMove(board, rows, columns, rotated, newHeight, newWidth, pieceRow, pieceCol)){
+                delete[] piece;
+                piece = rotated;
+                height = newHeight;
+                width = newWidth;
+            } else {
+                delete[] rotated;
+            }
+        }
+    }
+    delete[] piece;
+}
+void clearLines(uint8_t** board, int rows, int columns){
+    int bytesPerRow = columns / 8;
+
+    for(int i = rows - 1; i >= 0; i--){
+
+        // verificar si la fila está llena
+        bool full = true;
+        for(int j = 0; j < bytesPerRow; j++){
+            if(board[i][j] != 255){
+                full = false;
+                break;
+            }
+        }
+
+        // si está llena, bajar todas las filas superiores
+        if(full){
+            for(int k = i; k > 0; k--){
+                for(int j = 0; j < bytesPerRow; j++){
+                    board[k][j] = board[k-1][j];  // copiar fila superior
+                }
+            }
+            // limpiar la fila superior
+            for(int j = 0; j < bytesPerRow; j++){
+                board[0][j] = 0;
+            }
+            i++;  // revisar la misma fila de nuevo
+        }
+    }
+}
