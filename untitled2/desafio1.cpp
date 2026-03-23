@@ -57,14 +57,19 @@ void printBoard(uint8_t** board, int rows, int columns){
 uint8_t* rotatePiece(uint8_t* piece, int height, int width, int &newHeight, int &newWidth){
     newHeight = width;
     newWidth = height;
+
     uint8_t* rotated = new uint8_t[newHeight];
     for(int i = 0; i < newHeight; i++){
         rotated[i] = 0;
     }
+
     for(int i = 0; i < height; i++){
         for(int j = 0; j < width; j++){
             if(piece[i] & (1 << (width - 1 - j))){
-                rotated[j] |= (1 << (height - 1 - i));
+                // rotación 90° horario: nueva fila=j, nueva col=height-1-i
+                int newRow = j;
+                int newCol = height - 1 - i;
+                rotated[newRow] |= (1 << (newWidth - 1 - newCol));
             }
         }
     }
@@ -168,113 +173,48 @@ void printBoardWithPiece(uint8_t** board, int rows, int columns, uint8_t* piece,
 bool canMove(uint8_t** board, int rows, int columns, uint8_t* piece, int pieceHeight, int pieceWidth, int newRow, int newCol){
     for(int i = 0; i < pieceHeight; i++){
         for(int j = 0; j < pieceWidth; j++){
-
-            // verificar si el bit (i,j) de la pieza está encendido
             if(piece[i] & (1 << (pieceWidth - 1 - j))){
-
                 int boardRow = newRow + i;
                 int boardCol = newCol + j;
 
-                // verificar bordes del tablero
+                // ← ignorar filas que están fuera por arriba
+                if(boardRow < 0) continue;
+
+                // verificar bordes
                 if(boardRow >= rows || boardCol < 0 || boardCol >= columns){
-                    return false;  // se sale del tablero
+                    return false;
                 }
 
-                // verificar colisión con tablero
+                // verificar colisión
                 int byteIndex = boardCol / 8;
                 int bitIndex  = 7 - (boardCol % 8);
                 if(board[boardRow][byteIndex] & (1 << bitIndex)){
-                    return false;  // colisión con celda ocupada
+                    return false;
                 }
             }
         }
     }
-    return true;  // puede moverse
+    return true;
 }
 void fixPiece(uint8_t** board, int columns, uint8_t* piece, int pieceHeight, int pieceWidth, int pieceRow, int pieceCol){
+    int bytesPerRow = columns / 8;
     for(int i = 0; i < pieceHeight; i++){
         for(int j = 0; j < pieceWidth; j++){
-
-            // verificar si el bit (i,j) de la pieza está encendido
             if(piece[i] & (1 << (pieceWidth - 1 - j))){
-
                 int boardRow = pieceRow + i;
                 int boardCol = pieceCol + j;
 
-                // encender ese bit en el tablero usando OR
+                // ← verificar que esté dentro del tablero
+                if(boardRow < 0 || boardCol < 0 || boardCol >= columns){
+                    continue;  // ignorar bits fuera del tablero
+                }
+
                 int byteIndex = boardCol / 8;
                 int bitIndex  = 7 - (boardCol % 8);
                 board[boardRow][byteIndex] |= (1 << bitIndex);
             }
         }
     }
-}
-void gameLoop(uint8_t** board, int rows, int columns){
-    int height, width;
-    int type = 2; // luego será aleatorio
-    uint8_t* piece = createPiece(type, height, width);
-
-    int pieceRow = 0;
-    int pieceCol = (columns / 2) - (width / 2);
-
-    bool gameOver = false;
-    char accion;
-
-    while(!gameOver){
-        // 1. imprimir tablero con pieza
-        printBoardWithPiece(board, rows, columns, piece, height, width, pieceRow, pieceCol);
-        cout << "Accion: [A]Izq [D]Der [S]Bajar [W]Rotar [Q]Salir: ";
-        cin >> accion;
-
-        // 2. procesar accion
-        if(accion == 'q' || accion == 'Q'){
-            gameOver = true;
-
-        } else if(accion == 'a' || accion == 'A'){
-            if(canMove(board, rows, columns, piece, height, width, pieceRow, pieceCol - 1)){
-                pieceCol--;
-            }
-
-        } else if(accion == 'd' || accion == 'D'){
-            if(canMove(board, rows, columns, piece, height, width, pieceRow, pieceCol + 1)){
-                pieceCol++;
-            }
-
-        } else if(accion == 's' || accion == 'S'){
-            if(canMove(board, rows, columns, piece, height, width, pieceRow + 1, pieceCol)){
-                pieceRow++;
-            } else {
-                // fijar pieza en el tablero
-                fixPiece(board, columns, piece, height, width, pieceRow, pieceCol);
-                delete[] piece;
-
-                // generar nueva pieza
-                type = 2; // luego será aleatorio
-                piece = createPiece(type, height, width);
-                pieceRow = 0;
-                pieceCol = (columns / 2) - (width / 2);
-
-                // verificar game over
-                if(!canMove(board, rows, columns, piece, height, width, pieceRow, pieceCol)){
-                    gameOver = true;
-                    cout << "GAME OVER" << endl;
-                }
-            }
-
-        } else if(accion == 'w' || accion == 'W'){
-            int newHeight, newWidth;
-            uint8_t* rotated = rotatePiece(piece, height, width, newHeight, newWidth);
-            if(canMove(board, rows, columns, rotated, newHeight, newWidth, pieceRow, pieceCol)){
-                delete[] piece;
-                piece = rotated;
-                height = newHeight;
-                width = newWidth;
-            } else {
-                delete[] rotated;
-            }
-        }
-    }
-    delete[] piece;
 }
 void clearLines(uint8_t** board, int rows, int columns){
     int bytesPerRow = columns / 8;
@@ -294,14 +234,91 @@ void clearLines(uint8_t** board, int rows, int columns){
         if(full){
             for(int k = i; k > 0; k--){
                 for(int j = 0; j < bytesPerRow; j++){
-                    board[k][j] = board[k-1][j];  // copiar fila superior
+                    board[k][j] = board[k-1][j];
                 }
             }
-            // limpiar la fila superior
+            // limpiar fila superior
             for(int j = 0; j < bytesPerRow; j++){
                 board[0][j] = 0;
             }
-            i++;  // revisar la misma fila de nuevo
+            i++;
         }
     }
+}
+void gameLoop(uint8_t** board, int rows, int columns){
+    srand(time(0));
+    int height = 0, width = 0;  // ← inicializar en 0
+    int type = rand() % 7;
+    uint8_t* piece = createPiece(type, height, width);
+    int pieceRow = -(height - 1);
+    int pieceCol = (columns / 2) - (width / 2);
+    bool gameOver = false;
+    char accion;
+    int rotation = 0;
+
+    while(!gameOver){
+        printBoardWithPiece(board, rows, columns, piece, height, width, pieceRow, pieceCol);
+        cout << "Accion: [A]Izq [D]Der [S]Bajar [W]Rotar [Q]Salir: ";
+        cin >> accion;
+
+        if(accion == 'q' || accion == 'Q'){
+            gameOver = true;
+
+        } else if(accion == 'a' || accion == 'A'){
+            if(canMove(board, rows, columns, piece, height, width, pieceRow, pieceCol - 1)){
+                pieceCol--;
+            }
+
+        } else if(accion == 'd' || accion == 'D'){
+            if(canMove(board, rows, columns, piece, height, width, pieceRow, pieceCol + 1)){
+                pieceCol++;
+            }
+
+        } else if(accion == 's' || accion == 'S'){
+            if(canMove(board, rows, columns, piece, height, width, pieceRow + 1, pieceCol)){
+                pieceRow++;
+            } else {
+                fixPiece(board, columns, piece, height, width, pieceRow, pieceCol);
+                clearLines(board, rows, columns);
+                delete[] piece;
+
+                type = rand() % 7;
+                height = 0; width = 0;  // ← resetear antes
+                piece = createPiece(type, height, width);
+                pieceRow = -(height - 1);  // ← usar height actualizado
+                pieceCol = (columns / 2) - (width / 2);
+                rotation = 0;
+
+                if(!canMove(board, rows, columns, piece, height, width, pieceRow, pieceCol)){
+                    gameOver = true;
+                    cout << "GAME OVER" << endl;
+                }
+            }
+
+        } else if(accion == 'w' || accion == 'W'){
+            int nextRotation = (rotation + 1) % 4;
+            int newHeight = 0, newWidth = 0;  // ← inicializar en 0
+            uint8_t* original = createPiece(type, newHeight, newWidth);
+
+            for(int r = 0; r < nextRotation; r++){
+                int rh, rw;
+                uint8_t* temp = rotatePiece(original, newHeight, newWidth, rh, rw);
+                delete[] original;
+                original = temp;
+                newHeight = rh;
+                newWidth = rw;
+            }
+
+            if(canMove(board, rows, columns, original, newHeight, newWidth, pieceRow, pieceCol)){
+                delete[] piece;
+                piece = original;
+                height = newHeight;
+                width = newWidth;
+                rotation = nextRotation;
+            } else {
+                delete[] original;
+            }
+        }
+    }
+    delete[] piece;
 }
